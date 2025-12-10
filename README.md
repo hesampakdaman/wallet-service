@@ -6,9 +6,14 @@ In this application we provide each player to create their own wallets. Any wall
 - No idempotency checks on endpoints. In particular, retries would be treated as a new request.
 
 ## Architecture
+- **Adapters**: External dependencies.
+- **Bootstrap**: Wires the application together.
 - **Core**: Business logic and entities.
 - **Service**: Orchestration logic.
-- **Adapters**: External dependencies.
+- **Tests**: Integration tests.
+
+## Test strategy
+Since this service does not include heavy logic, we only test the public API of the service (the rest endpoints) together with the database by using testcontainers
 
 ## Usage
 
