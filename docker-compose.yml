@@ -1,0 +1,35 @@
+services:
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - data:/var/lib/postgresql/data
+    networks: [net]
+
+  migrate:
+    build: .
+    depends_on: [postgres]
+    environment:
+      - DATABASE_URL=postgres://postgres:postgres@postgres:5432/postgres?sslmode=disable
+    command: [/app/migrate]
+    networks: [net]
+    restart: no
+
+  app:
+    build: .
+    depends_on: [postgres, migrate]
+    ports:
+      - "8080:8080"
+    environment:
+      - DATABASE_URL=postgres://postgres:postgres@postgres:5432/postgres?sslmode=disable
+    restart: unless-stopped
+    networks: [net]
+
+networks:
+  net:
+
+volumes:
+  data:
