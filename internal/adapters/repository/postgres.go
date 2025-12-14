@@ -52,23 +52,6 @@ func (r Repository) Save(ctx context.Context, w models.Wallet) error {
 	return err
 }
 
-func (r Repository) GetForUpdate(ctx context.Context, walletID uuid.UUID) (models.Wallet, error) {
-	var w models.Wallet
-	if err := r.tx.QueryRow(ctx, `
-        SELECT id, player_id, balance FROM wallets
-        WHERE id = $1 FOR UPDATE
-        `,
-		walletID.String(),
-	).Scan(&w.ID, &w.PlayerID, &w.Balance); err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return w, errorx.ErrNotFound
-		}
-		return w, err
-	}
-
-	return w, nil
-}
-
 func (r Repository) Get(ctx context.Context, walletID uuid.UUID) (models.Wallet, error) {
 	var w models.Wallet
 	if err := r.tx.QueryRow(ctx, `
@@ -84,4 +67,37 @@ func (r Repository) Get(ctx context.Context, walletID uuid.UUID) (models.Wallet,
 	}
 
 	return w, nil
+}
+
+func (r Repository) AdjustBalance(ctx context.Context, walletID uuid.UUID, amount int) error {
+	ct, err := r.tx.Exec(ctx, `
+        UPDATE wallets
+        SET balance = balance + $1
+        WHERE id = $2
+	    `,
+		amount,
+		walletID.String(),
+	)
+	if err == nil && ct.RowsAffected() == 0 { // If no wallet exists
+		return errorx.ErrNotFound
+	}
+	if err == nil {
+		return nil
+	}
+
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		switch pgErr.Code {
+		case pgerrcode.UniqueViolation:
+			if strings.EqualFold(pgErr.ConstraintName, "wallets_player_id_key") {
+				return errorx.ErrConflict
+			}
+		case pgerrcode.CheckViolation:
+			if strings.EqualFold(pgErr.ConstraintName, "wallets_balance_non_negative") {
+				return errorx.ErrInsufficientBalance
+			}
+		}
+	}
+
+	return err
 }

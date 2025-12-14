@@ -2,13 +2,11 @@ package service
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 
 	"github.com/jackc/pgx/v5"
 
-	"github.com/hesampakdaman/wallet-service/internal/core/errorx"
 	"github.com/hesampakdaman/wallet-service/internal/service/commands"
 )
 
@@ -26,18 +24,7 @@ func (s Service) Deposit(ctx context.Context, cmd commands.Deposit) error {
 	}
 	defer repo.Rollback(ctx)
 
-	wallet, err := repo.GetForUpdate(ctx, cmd.WalletID)
-	if err != nil {
-		if errors.Is(err, errorx.ErrNotFound) {
-			logger.DebugContext(ctx, "deposit: wallet not found")
-			return err
-		}
-		logger.ErrorContext(ctx, "deposit: get wallet for update failed", slog.Any("error", err))
-		return fmt.Errorf("get wallet for update: %w", err)
-	}
-	wallet.Add(cmd.Amount)
-
-	if err := repo.Save(ctx, wallet); err != nil {
+	if err := repo.AdjustBalance(ctx, cmd.WalletID, int(cmd.Amount)); err != nil {
 		logger.ErrorContext(ctx, "deposit: save failed", slog.Any("error", err))
 		return fmt.Errorf("save: %w", err)
 	}
